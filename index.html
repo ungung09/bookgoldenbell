@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>독서 골든벨 - 모둠별 Quiz Web App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800">
+
+  <!-- GAS API URL 설정 -->
+  <script>
+    const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzhbeOHwDz9tFivmS0Eq4tnOFAXKCtl9JjhfjkLjuhtvOS2Adga47JhlMUsQJnlUS15/exec";
+  </script>
+
+  <!-- 상단 헤더 -->
+  <header class="bg-indigo-600 text-white p-4 shadow-md">
+    <div class="max-w-4xl mx-auto flex justify-between items-center">
+      <h1 class="text-xl font-bold flex items-center gap-2 cursor-pointer" onclick="showPage('page-login')">
+        📖 모둠별 독서 골든벨
+      </h1>
+      <div id="user-status" class="text-sm font-medium"></div>
+    </div>
+  </header>
+
+  <main class="max-w-4xl mx-auto p-4">
+
+    <!-- 1. 학생/관리자 로그인 페이지 -->
+    <section id="page-login" class="page-section">
+      <div class="max-w-md mx-auto bg-white p-6 rounded-xl shadow-lg border mt-8">
+        <h2 class="text-2xl font-bold text-center text-indigo-600 mb-6">학생 로그인</h2>
+        <form id="form-login" onsubmit="handleLogin(event)" class="space-y-4">
+          <div>
+            <label class="block text-sm font-semibold mb-1">소속 모둠</label>
+            <select id="login-group" class="w-full border rounded-lg p-2.5 bg-slate-50 focus:ring-2 focus:ring-indigo-500" required>
+              <!-- JS로 동적 로드 -->
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold mb-1">이름</label>
+            <input type="text" id="login-name" placeholder="이름을 입력하세요" class="w-full border rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500" required>
+          </div>
+          <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition">
+            골든벨 입장하기
+          </button>
+        </form>
+
+        <div class="mt-8 pt-4 border-t text-center">
+          <button onclick="openAdminModal()" class="text-xs text-slate-500 hover:text-indigo-600 underline">
+            🔒 관리자(교사) 로그인
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. 학생 메인 페이지 (출제 / 풀이 선택) -->
+    <section id="page-student-main" class="page-section hidden">
+      <div class="mb-6 bg-indigo-50 p-4 rounded-xl border border-indigo-100 flex justify-between items-center">
+        <div>
+          <span id="student-info-badge" class="font-bold text-indigo-700 text-lg"></span>님 환영합니다!
+        </div>
+        <button onclick="logout()" class="text-xs bg-slate-200 hover:bg-slate-300 px-3 py-1.5 rounded">로그아웃</button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- 출제 카드로 이동 -->
+        <div onclick="showPage('page-add-question')" class="bg-white p-6 rounded-xl shadow-md border hover:border-indigo-500 cursor-pointer transition flex flex-col items-center text-center group">
+          <div class="text-5xl mb-4 group-hover:scale-110 transition">✍️</div>
+          <h3 class="text-xl font-bold text-slate-800 mb-2">우리 모둠 문제 출제하기</h3>
+          <p class="text-sm text-slate-500">읽은 책 내용을 바탕으로 다른 모둠이 풀 골든벨 문제를 직접 만들어보세요.</p>
+        </div>
+
+        <!-- 풀이 카드로 이동 -->
+        <div onclick="showPage('page-quiz-select')" class="bg-white p-6 rounded-xl shadow-md border hover:border-indigo-500 cursor-pointer transition flex flex-col items-center text-center group">
+          <div class="text-5xl mb-4 group-hover:scale-110 transition">🔔</div>
+          <h3 class="text-xl font-bold text-slate-800 mb-2">독서 골든벨 풀기</h3>
+          <p class="text-sm text-slate-500">친구들이 출제하고 선생님이 승인한 독서 골든벨 문제를 풀어보세요!</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. 문제 출제 페이지 -->
+    <section id="page-add-question" class="page-section hidden">
+      <div class="bg-white p-6 rounded-xl shadow-md border max-w-2xl mx-auto">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-xl font-bold text-indigo-600">✍️ 독서 골든벨 문제 출제</h2>
+          <button onclick="showPage('page-student-main')" class="text-sm text-slate-500 hover:underline">← 돌아가기</button>
+        </div>
+
+        <form id="form-add-q" onsubmit="submitQuestion(event)" class="space-y-4">
+          <div>
+            <label class="block text-sm font-semibold mb-1">문제 지문</label>
+            <textarea id="q-text" rows="3" placeholder="책 내용을 바탕으로 문제를 입력하세요" class="w-full border rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500" required></textarea>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">보기 1번</label>
+              <input type="text" id="q-opt1" class="w-full border rounded-lg p-2" required>
+            </div>
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">보기 2번</label>
+              <input type="text" id="q-opt2" class="w-full border rounded-lg p-2" required>
+            </div>
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">보기 3번</label>
+              <input type="text" id="q-opt3" class="w-full border rounded-lg p-2" required>
+            </div>
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">보기 4번</label>
+              <input type="text" id="q-opt4" class="w-full border rounded-lg p-2" required>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold mb-1">정답 선택</label>
+            <select id="q-ans" class="w-full border rounded-lg p-2.5 bg-slate-50" required>
+              <option value="1">1번 보기</option>
+              <option value="2">2번 보기</option>
+              <option value="3">3번 보기</option>
+              <option value="4">4번 보기</option>
+            </select>
+          </div>
+
+          <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition">
+            문제 제출하기
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- 4. 풀이 모드 선택 페이지 -->
+    <section id="page-quiz-select" class="page-section hidden">
+      <div class="bg-white p-6 rounded-xl shadow-md border max-w-md mx-auto">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-xl font-bold text-indigo-600">🔔 풀이 모드 선택</h2>
+          <button onclick="showPage('page-student-main')" class="text-sm text-slate-500 hover:underline">← 돌아가기</button>
+        </div>
+
+        <div class="space-y-4">
+          <button onclick="startQuiz('ALL')" class="w-full bg-slate-800 text-white p-4 rounded-xl text-left font-bold hover:bg-slate-700 transition">
+            🌟 전체 모둠 문제 풀기 (랜덤)
+          </button>
+          
+          <hr class="my-4">
+          <p class="text-xs text-slate-500 font-semibold mb-2">특정 모둠 문제 선택해서 풀기</p>
+          <div id="quiz-group-buttons" class="grid grid-cols-2 gap-2">
+            <!-- JS dynamic generation -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. 퀴즈 풀이 실행 화면 -->
+    <section id="page-quiz-run" class="page-section hidden">
+      <div class="bg-white p-6 rounded-xl shadow-md border max-w-2xl mx-auto">
+        <div class="flex justify-between items-center mb-4 border-b pb-3">
+          <span id="quiz-progress" class="text-sm font-bold text-indigo-600"></span>
+          <span id="quiz-timer" class="text-xs bg-slate-100 px-2.5 py-1 rounded">진행 중</span>
+        </div>
+
+        <div id="quiz-container">
+          <h3 id="quiz-question" class="text-lg font-bold mb-6 text-slate-800"></h3>
+          <div id="quiz-options" class="space-y-3"></div>
+        </div>
+
+        <div class="mt-6 flex justify-end">
+          <button id="btn-next-quiz" onclick="nextQuestion()" class="bg-indigo-600 text-white font-bold px-6 py-2.5 rounded-lg hover:bg-indigo-700 transition hidden">
+            다음 문제 →
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. 퀴즈 결과 확인 화면 -->
+    <section id="page-quiz-result" class="page-section hidden">
+      <div class="bg-white p-6 rounded-xl shadow-md border max-w-2xl mx-auto text-center">
+        <div class="text-6xl mb-4">🏆</div>
+        <h2 class="text-2xl font-bold mb-2">골든벨 풀이 완료!</h2>
+        <p class="text-slate-600 mb-6">최종 성적이 제출되었습니다.</p>
+
+        <div class="bg-indigo-50 p-6 rounded-xl border border-indigo-100 mb-6">
+          <p class="text-sm text-indigo-600 font-semibold mb-1">내 점수</p>
+          <div id="result-score-text" class="text-4xl font-extrabold text-indigo-700">0 / 0</div>
+        </div>
+
+        <div id="result-review" class="text-left mb-6 space-y-3 max-h-60 overflow-y-auto p-2 bg-slate-50 rounded-lg">
+          <!-- 오답 목록 노출 -->
+        </div>
+
+        <button onclick="showPage('page-student-main')" class="bg-indigo-600 text-white font-bold px-8 py-3 rounded-lg hover:bg-indigo-700 transition">
+          메인으로 이동
+        </button>
+      </div>
+    </section>
+
+    <!-- 7. 교사 관리자 대시보드 -->
+    <section id="page-admin" class="page-section hidden">
+      <div class="bg-white p-6 rounded-xl shadow-md border">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">⚙️ 교사 관리자 페이지</h2>
+          <button onclick="logoutAdmin()" class="text-xs bg-red-100 text-red-600 px-3 py-1.5 rounded hover:bg-red-200">관리자 로그아웃</button>
+        </div>
+
+        <!-- 탭 버튼 -->
+        <div class="flex border-b mb-6 overflow-x-auto">
+          <button onclick="switchAdminTab('results')" id="tab-btn-results" class="admin-tab-btn py-2 px-4 border-b-2 font-bold border-indigo-600 text-indigo-600">
+            📊 성적 현황
+          </button>
+          <button onclick="switchAdminTab('questions')" id="tab-btn-questions" class="admin-tab-btn py-2 px-4 border-b-2 font-bold border-transparent text-slate-500">
+            🔍 문제 검수/승인
+          </button>
+          <button onclick="switchAdminTab('students')" id="tab-btn-students" class="admin-tab-btn py-2 px-4 border-b-2 font-bold border-transparent text-slate-500">
+            👥 학생 명단 관리
+          </button>
+          <button onclick="switchAdminTab('config')" id="tab-btn-config" class="admin-tab-btn py-2 px-4 border-b-2 font-bold border-transparent text-slate-500">
+            🏷️ 모둠 명칭 설정
+          </button>
+        </div>
+
+        <!-- TAB 1: 성적 현황 -->
+        <div id="admin-tab-results" class="admin-tab-content">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="font-bold">학생별 응시 기록</h3>
+            <select id="admin-filter-group" onchange="renderAdminResults()" class="border rounded px-3 py-1 text-sm">
+              <option value="ALL">전체 모둠 보기</option>
+            </select>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left border">
+              <thead class="bg-slate-100 border-b text-xs text-slate-600">
+                <tr>
+                  <th class="p-2.5">일시</th>
+                  <th class="p-2.5">모둠</th>
+                  <th class="p-2.5">이름</th>
+                  <th class="p-2.5">점수</th>
+                </tr>
+              </thead>
+              <tbody id="tbl-admin-results"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- TAB 2: 문제 검수 -->
+        <div id="admin-tab-questions" class="admin-tab-content hidden">
+          <h3 class="font-bold mb-4">전체 문제 및 승인 처리</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left border">
+              <thead class="bg-slate-100 border-b text-xs text-slate-600">
+                <tr>
+                  <th class="p-2.5">모둠/출제자</th>
+                  <th class="p-2.5">문제/보기</th>
+                  <th class="p-2.5">정답</th>
+                  <th class="p-2.5">승인 상태</th>
+                  <th class="p-2.5">관리</th>
+                </tr>
+              </thead>
+              <tbody id="tbl-admin-questions"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- TAB 3: 학생 명단 -->
+        <div id="admin-tab-students" class="admin-tab-content hidden">
+          <div class="bg-slate-50 p-4 rounded-lg mb-6 border">
+            <h4 class="font-bold text-sm mb-3">신규 학생 추가</h4>
+            <form onsubmit="handleAddStudent(event)" class="flex gap-2 flex-wrap">
+              <select id="add-std-group" class="border rounded p-2 text-sm" required></select>
+              <input type="text" id="add-std-name" placeholder="학생 이름" class="border rounded p-2 text-sm" required>
+              <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded text-sm font-bold">등록</button>
+            </form>
+          </div>
+          <h3 class="font-bold mb-2">등록된 학생 목록</h3>
+          <div class="overflow-x-auto max-h-80">
+            <table class="w-full text-sm text-left border">
+              <thead class="bg-slate-100 border-b text-xs text-slate-600">
+                <tr>
+                  <th class="p-2">모둠</th>
+                  <th class="p-2">학생 이름</th>
+                </tr>
+              </thead>
+              <tbody id="tbl-admin-students"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- TAB 4: 모둠 명칭 설정 -->
+        <div id="admin-tab-config" class="admin-tab-content hidden">
+          <h3 class="font-bold mb-2">모둠 명칭 변경</h3>
+          <p class="text-xs text-slate-500 mb-4">각 모둠의 표시 명칭을 설정합니다. (예: 1모둠 -> 1모둠 [해리포터팀])</p>
+          <form onsubmit="handleSaveGroupNames(event)" class="space-y-3 max-w-md">
+            <div id="group-name-inputs"></div>
+            <button type="submit" class="bg-indigo-600 text-white px-6 py-2.5 rounded-lg text-sm font-bold hover:bg-indigo-700">
+              모둠 이름 저장
+            </button>
+          </form>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 관리자 로그인 모달 -->
+  <div id="modal-admin-login" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-xl p-6 max-w-sm w-full shadow-2xl">
+      <h3 class="text-lg font-bold mb-4 text-slate-800">🔒 교사 관리자 인증</h3>
+      <form onsubmit="handleAdminLogin(event)">
+        <input type="password" id="admin-pass" placeholder="비밀번호 입력" class="w-full border rounded-lg p-2.5 mb-4 focus:ring-2 focus:ring-indigo-500" required>
+        <div class="flex justify-end gap-2">
+          <button type="button" onclick="closeAdminModal()" class="px-4 py-2 text-sm text-slate-500">취소</button>
+          <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold">확인</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- JS Logic -->
+  <script>
+    // 전역 상태
+    let currentStudent = null;
+    let adminPassword = null;
+    let groupNames = { 1: "1모둠", 2: "2모둠", 3: "3모둠", 4: "4모둠", 5: "5모둠", 6: "6모둠" };
+    
+    // 퀴즈 진행 상태
+    let quizList = [];
+    let quizIndex = 0;
+    let userAnswers = [];
+
+    // 관리자 데이터 Cache
+    let adminCache = null;
+
+    window.addEventListener('DOMContentLoaded', () => {
+      loadInitialConfig();
+    });
+
+    async function apiCall(data) {
+      if (GAS_API_URL === "YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE") {
+        alert("GAS_API_URL을 설정해 주세요!");
+        return { success: false };
+      }
+      try {
+        const response = await fetch(GAS_API_URL, {
+          method: 'POST',
+          body: JSON.stringify(data)
+        });
+        return await response.json();
+      } catch (e) {
+        alert("통신 중 오류가 발생했습니다: " + e.message);
+        return { success: false };
+      }
+    }
+
+    async function loadInitialConfig() {
+      const res = await apiCall({ action: 'get_initial_config' });
+      if (res.success && res.groupNames) {
+        groupNames = res.groupNames;
+      }
+      renderGroupSelects();
+    }
+
+    function renderGroupSelects() {
+      // 로그인 모둠 옵션
+      const loginSel = document.getElementById('login-group');
+      loginSel.innerHTML = '';
+      for (let i = 1; i <= 6; i++) {
+        loginSel.innerHTML += `<option value="${i}">${groupNames[i] || i + '모둠'}</option>`;
+      }
+
+      // 모둠 선택 퀴즈 버튼
+      const quizGroupBtns = document.getElementById('quiz-group-buttons');
+      quizGroupBtns.innerHTML = '';
+      for (let i = 1; i <= 6; i++) {
+        quizGroupBtns.innerHTML += `
+          <button onclick="startQuiz('${i}')" class="bg-indigo-50 border border-indigo-200 text-indigo-700 p-3 rounded-lg text-sm font-bold hover:bg-indigo-100 transition">
+            ${groupNames[i] || i + '모둠'} 문제
+          </button>
+        `;
+      }
+
+      // 관리자 추가용 모둠 옵션
+      const addStdSel = document.getElementById('add-std-group');
+      addStdSel.innerHTML = '';
+      for (let i = 1; i <= 6; i++) {
+        addStdSel.innerHTML += `<option value="${i}">${groupNames[i] || i + '모둠'}</option>`;
+      }
+    }
+
+    // --- 페이지 전환 ---
+    function showPage(pageId) {
+      document.querySelectorAll('.page-section').forEach(el => el.classList.add('hidden'));
+      document.getElementById(pageId).classList.remove('hidden');
+    }
+
+    // --- 로그인 / 인증 ---
+    async function handleLogin(e) {
+      e.preventDefault();
+      const groupId = document.getElementById('login-group').value;
+      const name = document.getElementById('login-name').value.trim();
+
+      const res = await apiCall({
+        action: 'login',
+        data: { group_id: groupId, student_name: name }
+      });
+
+      if (res.success) {
+        currentStudent = res.student;
+        document.getElementById('student-info-badge').innerText = `[${groupNames[currentStudent.group_id]}] ${currentStudent.student_name}`;
+        showPage('page-student-main');
+      } else {
+        alert(res.message);
+      }
+    }
+
+    function logout() {
+      currentStudent = null;
+      document.getElementById('login-name').value = '';
+      showPage('page-login');
+    }
+
+    // --- 문제 출제 ---
+    async function submitQuestion(e) {
+      e.preventDefault();
+      if (!currentStudent) return;
+
+      const data = {
+        group_id: currentStudent.group_id,
+        author: currentStudent.student_name,
+        question: document.getElementById('q-text').value,
+        opt1: document.getElementById('q-opt1').value,
+        opt2: document.getElementById('q-opt2').value,
+        opt3: document.getElementById('q-opt3').value,
+        opt4: document.getElementById('q-opt4').value,
+        answer: document.getElementById('q-ans').value
+      };
+
+      const res = await apiCall({ action: 'add_question', data: data });
+      if (res.success) {
+        alert(res.message);
+        document.getElementById('form-add-q').reset();
+        showPage('page-student-main');
+      }
+    }
+
+    // --- 문제 풀이 (골든벨) ---
+    async function startQuiz(targetGroup) {
+      const res = await apiCall({
+        action: 'get_questions',
+        data: { target_group: targetGroup }
+      });
+
+      if (!res.success || !res.questions || res.questions.length === 0) {
+        alert("풀 수 있는 승인된 문제가 없습니다.");
+        return;
+      }
+
+      // 문제 렌더링 준비
+      quizList = res.questions.sort(() => Math.random() - 0.5); // 셔플
+      quizIndex = 0;
+      userAnswers = [];
+
+      showPage('page-quiz-run');
+      renderQuizStep();
+    }
+
+    function renderQuizStep() {
+      const q = quizList[quizIndex];
+      document.getElementById('quiz-progress').innerText = `문제 ${quizIndex + 1} / ${quizList.length}`;
+      document.getElementById('quiz-question').innerText = `Q. ${q.question}`;
+
+      const optsContainer = document.getElementById('quiz-options');
+      optsContainer.innerHTML = '';
+
+      [1, 2, 3, 4].forEach(num => {
+        const optText = q['opt' + num];
+        optsContainer.innerHTML += `
+          <button onclick="selectAnswer(${num})" class="quiz-opt-btn w-full text-left border p-3 rounded-lg hover:bg-indigo-50 transition border-slate-200">
+            <span class="font-bold text-indigo-600 mr-2">${num}.</span> ${optText}
+          </button>
+        `;
+      });
+
+      document.getElementById('btn-next-quiz').classList.add('hidden');
+    }
+
+    function selectAnswer(ansNum) {
+      userAnswers[quizIndex] = ansNum;
+      
+      const btns = document.querySelectorAll('.quiz-opt-btn');
+      btns.forEach((btn, idx) => {
+        if (idx + 1 === ansNum) {
+          btn.classList.add('bg-indigo-100', 'border-indigo-500', 'font-bold');
+        } else {
+          btn.classList.remove('bg-indigo-100', 'border-indigo-500', 'font-bold');
+        }
+      });
+
+      document.getElementById('btn-next-quiz').classList.remove('hidden');
+    }
+
+    function nextQuestion() {
+      quizIndex++;
+      if (quizIndex < quizList.length) {
+        renderQuizStep();
+      } else {
+        finishQuiz();
+      }
+    }
+
+    async function finishQuiz() {
+      let score = 0;
+      let reviewHtml = '';
+
+      quizList.forEach((q, idx) => {
+        const uAns = userAnswers[idx];
+        const isCorrect = String(uAns) === String(q.answer);
+        if (isCorrect) score++;
+
+        reviewHtml += `
+          <div class="p-3 border rounded text-xs ${isCorrect ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}">
+            <p class="font-bold mb-1">${idx + 1}. ${q.question}</p>
+            <p>선택 답: ${uAns}번 / 정답: ${q.answer}번 (${isCorrect ? '⭕ 정답' : '❌ 오답'})</p>
+          </div>
+        `;
+      });
+
+      document.getElementById('result-score-text').innerText = `${score} / ${quizList.length}`;
+      document.getElementById('result-review').innerHTML = reviewHtml;
+
+      // 결과 DB 저장
+      await apiCall({
+        action: 'submit_result',
+        data: {
+          group_id: currentStudent.group_id,
+          student_name: currentStudent.student_name,
+          score: score,
+          total: quizList.length
+        }
+      });
+
+      showPage('page-quiz-result');
+    }
+
+    // --- 교사 관리자 페이지 ---
+    function openAdminModal() {
+      document.getElementById('modal-admin-login').classList.remove('hidden');
+      document.getElementById('modal-admin-login').classList.add('flex');
+    }
+
+    function closeAdminModal() {
+      document.getElementById('modal-admin-login').classList.add('hidden');
+      document.getElementById('modal-admin-login').classList.remove('flex');
+    }
+
+    async function handleAdminLogin(e) {
+      e.preventDefault();
+      const pass = document.getElementById('admin-pass').value;
+      const res = await apiCall({ action: 'admin_login', data: { password: pass } });
+
+      if (res.success) {
+        adminPassword = pass;
+        closeAdminModal();
+        showPage('page-admin');
+        loadAdminData();
+      } else {
+        alert(res.message);
+      }
+    }
+
+    function logoutAdmin() {
+      adminPassword = null;
+      adminCache = null;
+      showPage('page-login');
+    }
+
+    async function loadAdminData() {
+      const res = await apiCall({
+        action: 'get_admin_data',
+        data: { password: adminPassword }
+      });
+
+      if (res.success) {
+        adminCache = res;
+        if (res.groupNames) groupNames = res.groupNames;
+        renderAdminResults();
+        renderAdminQuestions();
+        renderAdminStudents();
+        renderAdminConfig();
+      }
+    }
+
+    function switchAdminTab(tabName) {
+      document.querySelectorAll('.admin-tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.admin-tab-btn').forEach(el => {
+        el.classList.remove('border-indigo-600', 'text-indigo-600');
+        el.classList.add('border-transparent', 'text-slate-500');
+      });
+
+      document.getElementById(`admin-tab-${tabName}`).classList.remove('hidden');
+      const activeBtn = document.getElementById(`tab-btn-${tabName}`);
+      activeBtn.classList.add('border-indigo-600', 'text-indigo-600');
+      activeBtn.classList.remove('border-transparent', 'text-slate-500');
+    }
+
+    function renderAdminResults() {
+      if (!adminCache) return;
+      const filterGroup = document.getElementById('admin-filter-group').value;
+      const tbody = document.getElementById('tbl-admin-results');
+      tbody.innerHTML = '';
+
+      // 필터 오버레이 옵션
+      const filterSel = document.getElementById('admin-filter-group');
+      if (filterSel.children.length <= 1) {
+        for (let i = 1; i <= 6; i++) {
+          filterSel.innerHTML += `<option value="${i}">${groupNames[i] || i + '모둠'}</option>`;
+        }
+      }
+
+      let list = adminCache.results || [];
+      if (filterGroup !== 'ALL') {
+        list = list.filter(r => String(r.group_id) === String(filterGroup));
+      }
+
+      list.reverse().forEach(r => {
+        tbody.innerHTML += `
+          <tr class="border-b">
+            <td class="p-2.5 text-xs text-slate-500">${r.timestamp}</td>
+            <td class="p-2.5">${groupNames[r.group_id] || r.group_id + '모둠'}</td>
+            <td class="p-2.5 font-semibold">${r.student_name}</td>
+            <td class="p-2.5 text-indigo-600 font-bold">${r.score} / ${r.total}</td>
+          </tr>
+        `;
+      });
+    }
+
+    function renderAdminQuestions() {
+      if (!adminCache) return;
+      const tbody = document.getElementById('tbl-admin-questions');
+      tbody.innerHTML = '';
+
+      (adminCache.questions || []).forEach(q => {
+        const isApproved = q.is_approved === 'Y';
+        tbody.innerHTML += `
+          <tr class="border-b">
+            <td class="p-2.5">
+              <span class="font-bold block">${groupNames[q.group_id] || q.group_id + '모둠'}</span>
+              <span class="text-xs text-slate-500">${q.author}</span>
+            </td>
+            <td class="p-2.5">
+              <p class="font-semibold text-slate-800 mb-1">${q.question}</p>
+              <p class="text-xs text-slate-500">1) ${q.opt1} | 2) ${q.opt2} | 3) ${q.opt3} | 4) ${q.opt4}</p>
+            </td>
+            <td class="p-2.5 font-bold text-indigo-600">${q.answer}번</td>
+            <td class="p-2.5">
+              <span class="px-2 py-1 rounded text-xs font-bold ${isApproved ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}">
+                ${isApproved ? '승인됨' : '대기중'}
+              </span>
+            </td>
+            <td class="p-2.5">
+              <button onclick="toggleQuestionStatus('${q.id}', '${isApproved ? 'N' : 'Y'}')" class="text-xs px-2.5 py-1 rounded border ${isApproved ? 'border-red-300 text-red-600 hover:bg-red-50' : 'border-green-300 text-green-600 hover:bg-green-50'}">
+                ${isApproved ? '승인 취소' : '승인하기'}
+              </button>
+            </td>
+          </tr>
+        `;
+      });
+    }
+
+    async function toggleQuestionStatus(qId, nextStatus) {
+      const res = await apiCall({
+        action: 'update_question_status',
+        data: { admin_password: adminPassword, question_id: qId, is_approved: nextStatus }
+      });
+      if (res.success) {
+        loadAdminData();
+      }
+    }
+
+    function renderAdminStudents() {
+      if (!adminCache) return;
+      const tbody = document.getElementById('tbl-admin-students');
+      tbody.innerHTML = '';
+
+      (adminCache.students || []).forEach(s => {
+        tbody.innerHTML += `
+          <tr class="border-b">
+            <td class="p-2">${groupNames[s.group_id] || s.group_id + '모둠'}</td>
+            <td class="p-2 font-semibold">${s.student_name}</td>
+          </tr>
+        `;
+      });
+    }
+
+    async function handleAddStudent(e) {
+      e.preventDefault();
+      const gId = document.getElementById('add-std-group').value;
+      const name = document.getElementById('add-std-name').value.trim();
+
+      const res = await apiCall({
+        action: 'add_student',
+        data: { admin_password: adminPassword, group_id: gId, student_name: name }
+      });
+
+      if (res.success) {
+        document.getElementById('add-std-name').value = '';
+        loadAdminData();
+      }
+    }
+
+    function renderAdminConfig() {
+      const container = document.getElementById('group-name-inputs');
+      container.innerHTML = '';
+
+      for (let i = 1; i <= 6; i++) {
+        container.innerHTML += `
+          <div class="flex items-center gap-3">
+            <span class="text-sm font-semibold w-16">${i}모둠:</span>
+            <input type="text" id="cfg-group-${i}" value="${groupNames[i] || i + '모둠'}" class="border rounded p-2 text-sm flex-1" required>
+          </div>
+        `;
+      }
+    }
+
+    async function handleSaveGroupNames(e) {
+      e.preventDefault();
+      let updatedNames = {};
+      for (let i = 1; i <= 6; i++) {
+        updatedNames[i] = document.getElementById(`cfg-group-${i}`).value.trim();
+      }
+
+      const res = await apiCall({
+        action: 'update_group_names',
+        data: { admin_password: adminPassword, group_names: updatedNames }
+      });
+
+      if (res.success) {
+        alert("모둠 명칭이 저장되었습니다.");
+        groupNames = updatedNames;
+        renderGroupSelects();
+        loadAdminData();
+      }
+    }
+  </script>
+</body>
+</html>
